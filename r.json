@@ -1,0 +1,149 @@
+'use client';
+import { useState, useEffect, useRef } from 'react';
+
+export default function Dashboard() {
+  // បញ្ជីសំណួរ (Dynamic Queue)
+  const [questions, setQuestions] = useState([
+    "តើប្រាសាទអង្គរវត្តស្ថិតនៅឯណា?",
+    "តើវាស្ថិតនៅក្នុងខេត្តណា និងទ្វីបណាដែរ?",
+    "តើប្រាសាទនេះត្រូវបានកសាងឡើងនៅក្នុងសតវត្សរ៍ទីប៉ុន្មាន?"
+  ]);
+
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [status, setStatus] = useState("រង់ចាំ");
+  const [aiResponse, setAiResponse] = useState("");
+  const [inputText, setInputText] = useState(""); // សម្រាប់ Admin បន្ថែមសំណួរ
+
+  const timeoutRef = useRef(null);
+
+  // ១. មុខងារ Skip ទៅសំណួរបន្ទាប់ភ្លាមៗ
+  const handleSkipNext = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    
+    if (currentIndex + 1 < questions.length) {
+      setStatus("⏩ បាន Skip ទៅសំណួរបន្ទាប់...");
+      setCurrentIndex((prev) => prev + 1);
+    } else {
+      setIsPlaying(false);
+      setStatus("🎉 បានបញ្ចប់សំណួរទាំងអស់នៅក្នុង Queue ហើយ!");
+    }
+  };
+
+  // ២. មុខងារ Admin បន្ថែមសំណួរថ្មីចូល Queue ( add ជា Text)
+  const handleAddQuestions = () => {
+    if (!inputText.trim()) return;
+    // អាចបញ្ចូលសំណួរច្រើនក្នុងពេលតែមួយ ដោយខណ្ឌដោយបន្ទាត់ថ្មី (New Line)
+    const newLines = inputText.split('\n').filter(q => q.trim() !== "");
+    setQuestions((prev) => [...prev, ...newLines]);
+    setInputText("");
+    setStatus(`✅ បានបន្ថែម ${newLines.length} សំណួរទៅក្នុង Queue!`);
+  };
+
+  // ៣. ប្រព័ន្ធ Auto-play & Communication Logic
+  const sendQuestion = (text) => {
+    setStatus(`⚡ កំពុងផ្ញើសំណួរទី ${currentIndex + 1}...`);
+    setAiResponse("");
+
+    // កំណត់ Timeout ៣ វិនាទី បើគ្មាន Gibberlink ឆ្លើយតប វានឹង Auto-Skip ទៅសំណួរបន្ទាប់
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      setStatus("⚠️ គ្មានការឆ្លើយតប! កំពុង Auto-Skip...");
+      handleSkipNext();
+    }, 3000);
+  };
+
+  // ៤. ទទួល Signal ពេល AI ឆ្លើយតបចប់
+  const handleIncomingGibberlink = (data, isCompleted) => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setAiResponse((prev) => prev + " " + data);
+
+    if (isCompleted) {
+      setStatus("✅ AI ឆ្លើយតបចប់! កំពុងប្ដូរទៅសំណួរបន្ទាប់...");
+      setTimeout(() => {
+        handleSkipNext(); // ប្ដូរទៅសំណួរបន្ទាប់ស្វ័យប្រវត្តិ
+      }, 500);
+    }
+  };
+
+  useEffect(() => {
+    if (isPlaying && currentIndex < questions.length) {
+      sendQuestion(questions[currentIndex]);
+    }
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [currentIndex, isPlaying]);
+
+  return (
+    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '750px', margin: 'auto' }}>
+      <h2>AI Admin Manager & Auto-Play Dashboard</h2>
+
+      {/* ផ្នែក Admin Manager សម្រាប់ إضافة សំណួរ/Text */}
+      <div style={{ border: '1px solid #ddd', padding: '15px', borderRadius: '8px', mb: '20px', background: '#f9f9f9' }}>
+        <h3>📝 Admin Manager (បន្ថែមសំណួរ/Text)</h3>
+        <textarea
+          rows={3}
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          placeholder="វាយ ឬ Paste សំណួរនៅទីនេះ (ចុះបន្ទាត់ដើម្បីថែមសំណួរផ្សេងទៀត)..."
+          style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc' }}
+        />
+        <button 
+          onClick={handleAddQuestions}
+          style={{ marginTop: '8px', padding: '8px 16px', background: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+        >
+          + បន្ថែមចូល Queue
+        </button>
+      </div>
+
+      {/* ផ្នែក Display & Control Dashboard */}
+      <div style={{ border: '2px solid #0070f3', padding: '20px', borderRadius: '8px', marginTop: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h4>សំណួរទី ({currentIndex + 1}/{questions.length}):</h4>
+          <span style={{ fontSize: '12px', background: '#eee', padding: '4px 8px', borderRadius: '4px' }}>
+            សំណួរក្នុង Queue សរុប៖ {questions.length}
+          </span>
+        </div>
+
+        <p style={{ fontSize: '18px', fontWeight: 'bold', color: '#0051a8' }}>
+          {questions[currentIndex] || "គ្មានសំណួរនៅក្នុង Queue ទេ"}
+        </p>
+
+        <p><strong>ស្ថានភាព៖</strong> <span style={{ color: 'red' }}>{status}</span></p>
+
+        <h4>ទិន្នន័យ Gibberlink ទទួលបាន៖</h4>
+        <div style={{ background: '#1e1e1e', color: '#00ff66', padding: '10px', borderRadius: '5px', fontFamily: 'monospace', minHeight: '50px' }}>
+          {aiResponse || "// រង់ចាំ Signal..."}
+        </div>
+
+        {/* គ្រាប់ចុចបញ្ជា Auto-play និង Skip */}
+        <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+          <button
+            onClick={() => setIsPlaying(!isPlaying)}
+            style={{ padding: '10px 20px', background: isPlaying ? '#dc3545' : '#0070f3', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+          >
+            {isPlaying ? "បញ្ឈប់" : "ចាប់ផ្ដើម Auto-Play"}
+          </button>
+
+          <button
+            onClick={handleSkipNext}
+            disabled={!isPlaying}
+            style={{ padding: '10px 20px', background: '#ffc107', color: 'black', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+          >
+            ⏭️ Skip Next
+          </button>
+
+          {isPlaying && (
+            <button
+              onClick={() => handleIncomingGibberlink("{"status":"complete"}", true)}
+              style={{ padding: '10px 15px', background: '#17a2b8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+            >
+              [Test] AI ឆ្លើយតបចប់
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
